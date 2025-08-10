@@ -2,11 +2,14 @@
 .intel_syntax noprefix
 
 .section .data
-prompt: .asciz "Starting server...\n"
-prompt_len = 20
+log_start: .asciz "Starting server...\n"
+log_start_len = 19
 
-prompt_socket_fail: .asciz "Socket failed\n"
-prompt_sf_len = 15
+log_socket_fail: .asciz "Socket failed\n"
+log_sf_len = 14
+
+log_socket_close: .asciz "Closed socket\n"
+log_sc_len = 14
 
 .section .bss
 sock_fd: .space 4
@@ -15,8 +18,8 @@ sock_fd: .space 4
 _start:
     mov rax, 1
     mov rdi, 1
-    lea rsi, [prompt]
-    mov rdx, prompt_len
+    lea rsi, [log_start]
+    mov rdx, log_start_len 
     syscall
 
     /* Create socket */
@@ -35,6 +38,12 @@ _start:
     mov rax, 3
     mov rdi, [sock_fd]
     syscall
+    
+    mov rax, 1
+    mov rdi, 1
+    lea rsi, [log_socket_close]
+    mov rdx, log_sc_len
+    syscall
 
     mov rax, 60
     mov rdi, 0
@@ -43,8 +52,8 @@ _start:
 socket_fail:
     mov rax, 1
     mov rdi, 1
-    lea rsi, [prompt_socket_fail]
-    mov rdx, prompt_sf_len
+    lea rsi, [log_socket_fail]
+    mov rdx, log_sf_len
     syscall
 
     mov rax, 60
