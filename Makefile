@@ -1,6 +1,5 @@
 AS = as
 LD = ld
-CC = clang
 
 SRC_DIR = src
 BUILD_DIR = build
@@ -15,7 +14,7 @@ CLIENT_OBJ = $(BUILD_DIR)/client.o
 SERVER_BIN = $(BIN_DIR)/server
 CLIENT_BIN = $(BIN_DIR)/client
 
-ASFLAGS = --64
+ASFLAGS = --64 -msyntax=intel 
 
 LDFLAGS = 
 
