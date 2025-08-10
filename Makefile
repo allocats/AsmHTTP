@@ -5,7 +5,7 @@ SRC_DIR = src
 BUILD_DIR = build
 BIN_DIR = $(BUILD_DIR)/bin
 
-SERVER_SRC = $(SRC_DIR)/server.s
+SERVER_SRC = $(SRC_DIR)/server.asm
 CLIENT_SRC = $(SRC_DIR)/client.s
 
 SERVER_OBJ = $(BUILD_DIR)/server.o
