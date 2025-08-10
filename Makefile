@@ -1,12 +1,14 @@
 AS = as
 LD = ld
 
+ASFLAGS = --64 -msyntax=intel 
+
 SRC_DIR = src
 BUILD_DIR = build
 BIN_DIR = $(BUILD_DIR)/bin
 
 SERVER_SRC = $(SRC_DIR)/server.asm
-CLIENT_SRC = $(SRC_DIR)/client.s
+CLIENT_SRC = $(SRC_DIR)/client.asm
 
 SERVER_OBJ = $(BUILD_DIR)/server.o
 CLIENT_OBJ = $(BUILD_DIR)/client.o
@@ -14,9 +16,6 @@ CLIENT_OBJ = $(BUILD_DIR)/client.o
 SERVER_BIN = $(BIN_DIR)/server
 CLIENT_BIN = $(BIN_DIR)/client
 
-ASFLAGS = --64 -msyntax=intel 
-
-LDFLAGS = 
 
 all: $(SERVER_BIN) $(CLIENT_BIN)
 
@@ -30,13 +29,13 @@ $(SERVER_OBJ): $(SERVER_SRC) | $(BUILD_DIR)
 	$(AS) $(ASFLAGS) $(SERVER_SRC) -o $(SERVER_OBJ)
 
 $(SERVER_BIN): $(SERVER_OBJ) | $(BIN_DIR)
-	$(LD) $(LDFLAGS) $(SERVER_OBJ) -o $(SERVER_BIN)
+	$(LD) $(SERVER_OBJ) -o $(SERVER_BIN)
 
 $(CLIENT_OBJ): $(CLIENT_SRC) | $(BUILD_DIR)
 	$(AS) $(ASFLAGS) $(CLIENT_SRC) -o $(CLIENT_OBJ)
 
 $(CLIENT_BIN): $(CLIENT_OBJ) | $(BIN_DIR)
-	$(LD) $(LDFLAGS) $(CLIENT_OBJ) -o $(CLIENT_BIN)
+	$(LD) $(CLIENT_OBJ) -o $(CLIENT_BIN)
 
 server: $(SERVER_BIN)
 
