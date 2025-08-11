@@ -17,8 +17,17 @@ log_lf_len = 14
 log_accept_fail: .asciz "Accpet failed\n"
 log_af_len = 14
 
+log_read_fail: .asciz "Read failed\n"
+log_rf_len = 12
+
 log_socket_close: .asciz "Closed socket\n"
 log_sc_len = 14
+
+client_prompt: .asciz "Client: "
+client_prompt_len = 8
+
+server_prompt: .asciz "Message: "
+server_prompt_len = 9
 
 client_addr_len: .long 16 
 
@@ -26,6 +35,7 @@ client_addr_len: .long 16
 sock_fd: .space 4
 client_fd: .space 4
 client_addr: .space 16
+message: .space 8
 
 .section .text
 _start:
@@ -82,7 +92,13 @@ _start:
     cmp eax, -1
     je accept_fail
 
-    # After accept() and handling one client:
+    mov dword ptr [client_fd], eax
+
+    # Handling client 
+
+    call chat_loop
+
+    # Close client
     mov [client_fd], rax
     mov rax, 3
     mov rdi, [client_fd]
@@ -102,6 +118,50 @@ _start:
     mov rax, 60
     mov rdi, 0
     syscall
+
+chat_loop:
+    mov rax, 0 
+    mov rdi, [client_fd]
+    lea rsi, [message]
+    mov rdx, 8
+    syscall
+
+    cmp eax, -1
+    je read_fail
+
+    mov rax, 1
+    mov rdi, 1
+    lea rsi, [client_prompt]
+    mov rdx, client_prompt_len
+    syscall
+
+    mov rax, 1 
+    mov rdi, 1 
+    lea rsi, [message]
+    mov rdx, 8
+    syscall
+
+    mov rax, 1
+    mov rdi, 1
+    lea rsi, [server_prompt]
+    mov rdx, server_prompt_len
+    syscall
+
+    mov rax, 0
+    mov rdi, 0
+    lea rsi, [message]
+    mov rdx, 8
+    syscall
+
+    mov rax, 1
+    mov rdi, [client_fd]
+    lea rsi, [message]
+    mov rdx, 8
+    syscall
+
+    mov al, [message]
+    cmp al, 'q'
+    jne chat_loop
 
 socket_fail:
     mov rax, 1
@@ -141,6 +201,17 @@ accept_fail:
     mov rdi, 1
     lea rsi, [log_accept_fail]
     mov rdx, log_af_len
+    syscall
+
+    mov rax, 60
+    mov rdi, 1 
+    syscall
+
+read_fail:
+    mov rax, 1
+    mov rdi, 1
+    lea rsi, [log_read_fail]
+    mov rdx, log_rf_len
     syscall
 
     mov rax, 60
