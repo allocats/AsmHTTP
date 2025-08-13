@@ -108,7 +108,6 @@ serve_connection:
     syscall
 
 parse_request:
-    # todo 
     lea rdi, [buffer]
 
     mov eax, dword ptr [rdi]
@@ -187,6 +186,7 @@ open_file:
     mov rdx, r13 
     syscall
     ret
+
 skip_content:
     call send_200_headers
     ret
