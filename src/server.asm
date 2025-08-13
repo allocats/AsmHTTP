@@ -2,82 +2,32 @@
 .intel_syntax noprefix
 
 .section .bss
-sock_fd:
-    .space 8
-
-client_fd:
-    .space 8
-
-buffer:
-    .space 1024
-
-file_path_buffer:
-    .space 256
-
-file_buffer:
-    .space 4096
+sock_fd:        .space 8
+epoll_fd:       .space 8
+client_fd:       .space 8
+events_array:   .space 16 * 16
 
 .section .data
-html_ext:
-    .asciz "html"
-html_ext_len = . - html_ext
+http_response:
+    .asciz "HTTP/1.1 200 OK\r\nContent-Length: 13\r\n\r\nHello, world!"
+http_response_len = . - http_response
 
-css_ext:
-    .asciz "css"
-css_ext_len = . - css_ext
-
-js_ext:
-    .asciz "js"
-js_ext_len = . - js_ext
-
-get_req: 
-    .asciz "GET "
-
-post_req: 
-    .asciz "POST"
-
-http_200_html: 
-    .ascii "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n"
-http_200_html_len = . - http_200_html
-
-http_200_css: 
-    .ascii "HTTP/1.1 200 OK\r\nContent-Type: text/css\r\nConnection: close\r\n\r\n"
-http_200_css_len = . - http_200_css
-
-http_200_js: 
-    .ascii "HTTP/1.1 200 OK\r\nContent-Type: application/javascript\r\nConnection: close\r\n\r\n"
-http_200_js_len = . - http_200_js
-
-http_404: 
-    .ascii "HTTP/1.1 404 Not Found\r\nContent-Length: 9\r\nConnection: close\r\n\r\nNot Found"
-http_404_len = . - http_404
-
-default_response: 
-    .ascii "<h1>Hello from x86 asm :3</h1>"
-default_response_len = . - default_response
-
-ext_table:
-    .quad ext_html, case_html
-    .quad ext_css,  case_css
-    .quad ext_js,   case_js
-    .quad 0,        case_default 
-
-.section .text
+.section .text 
 _start:
-    mov rax, 41 
-    mov rdi, 2 
-    mov rsi, 1 
+    mov rax, 41
+    mov rdi, 2
+    mov rsi, 1
     mov rdx, 0
     syscall
 
-    mov qword ptr [sock_fd], rax
+    mov [sock_fd], rax
 
     sub rsp, 16
 
-    mov word ptr [rsp], 2 # af_inet ipv4
-    mov word ptr [rsp + 2], 0x901f # port 8080
-    mov dword ptr [rsp + 4], 0  # localhost 
-    mov qword ptr [rsp + 8], 0  # padding since it expects 16 bytes
+    mov word ptr [rsp], 2 
+    mov word ptr [rsp + 2], 0x901f
+    mov dword ptr [rsp + 4], 0
+    mov qword ptr [rsp + 8], 0
 
     mov rax, 49
     mov rdi, [sock_fd]
@@ -89,207 +39,118 @@ _start:
 
     mov rax, 50
     mov rdi, [sock_fd]
-    mov rsi, 8
+    mov rsi, 1024
     syscall
 
-    jmp accept_connection
+    # epoll!!! creates here
+    mov rax, 291
+    xor rdi, rdi
+    syscall
 
-accept_connection:
+    mov [epoll_fd], rax
+    
+    sub rsp, 12
+
+    mov rax, 233
+    mov rdi, [epoll_fd]
+    mov rsi, 1 
+    mov rdx, [sock_fd]
+    
+    mov r11, [sock_fd]
+    mov dword ptr [rsp], 1
+    mov qword ptr [rsp + 4], r11
+    mov r10, rsp
+    syscall
+
+    add rsp, 12
+
+event_loop:
+    mov rax, 232
+    mov rdi, [epoll_fd]
+    mov rsi, events_array
+    mov rdx, 16
+    mov r10, -1
+    syscall
+
+    cmp rax, 0
+    jle event_loop
+
+    mov r12, rax # event count
+    xor r13, r13
+
+process_events:
+    cmp r13, r12
+    jge event_loop
+
+    mov r14, r13
+    imul r14, 16 # get offset to top of stack of events
+    lea r15, [events_array + r14]
+
+    mov r11, qword ptr [r15 + 4] # fd from event
+    
+    cmp r11, [sock_fd]
+    je handle_new_connection
+
+    jmp handle_client
+
+handle_new_connection:
     mov rax, 43
     mov rdi, [sock_fd]
-    mov rsi, 0x0
-    mov rdx, 0x0
-    syscall
-
-    mov qword ptr [client_fd], rax
-    mov rax, 57
+    mov rsi, 0
+    mov rdx, 0
     syscall
 
     cmp rax, 0
-    je serve_connection
+    js next_event
 
-    mov rdi, [client_fd]
-    mov rax, 3
+    mov [client_fd], rax
+
+    # add the new client to epoll
+    sub rsp, 16
+
+    mov rax, 233
+    mov rdi, [epoll_fd]
+    mov rsi, 1 
+    mov rdx, [client_fd]
+
+    mov r11, [client_fd]
+    mov dword ptr [rsp], 1
+    mov qword ptr [rsp + 4], r11
+    mov r10, rsp
     syscall
 
-    jmp accept_connection
+    add rsp, 16
 
-serve_connection:
-    mov rax, 0 
-    mov rdi, [client_fd]    
-    lea rsi, [buffer]
-    mov rdx, 1024
-    syscall
+    jmp next_event
 
-    cmp rax, 0 
-    jle close_and_exit
-
-    mov r15, rax # bytes read 
-
-    call parse_request
-
-    mov rdi, [client_fd]
-    mov rax, 3
-    syscall
-
-    mov rax, 60
-    mov rdi, 0 
-    syscall
-
-parse_request:
-    lea rsi, [buffer]
-    lea rdi, [get_req]
-    mov rcx, get_path_end
-    call compare_strings
-
-    cmp rax, 0
-    jne send_404
-    
-    #find start 
-    #find end 
-    #store in to file_path_buffer
-    lea rsi, [buffer + 4]
-    mov rcx, 4 
-    call find_start
-
-find_start:
-    mov al, byte ptr [rsi]
-    cmp al, ' '
-    jne find_done
-    inc rsi 
-    inc rcx
-    jmp find_start
-
-find_done:
-    ret
-    
-open_file:
-    mov rax, 2 
-    lea rdi, [file_path_buffer]
-    mov rsi, 0 
-    syscall
-
-    cmp rax, 0 
-    js send_404
-    
-    mov r14, rax # fd 
-
-    mov rax, 0 
-    mov rdi, r14 
-    lea rsi, [file_buffer]
-    mov rdx, 4095 
-    syscall
-
-    mov r13, rax # file size
-
-    mov rax, 3
-    mov rdi, r14
-    syscall 
-
-    cmp r13, 0
-    jle skip_content 
-
-    # call right header 
-    call get_extension
-
-    mov rax, 1 
-    mov rdi, [client_fd]
-    lea rsi, [file_buffer]
-    mov rdx, r13 
-    syscall
-    ret
-
-get_extension:
-    lea rdi, [file_path_buffer]
-
-    
-get_path_end:
-    cmp byte ptr [rdi], ' '
-    je found_end
-    inc rdi
-    cmp rdi, buffer + 1024
-    je send_404
-    jmp get_path_end
-
-compare_strings:
-    push rsi # buffer 
-    push rdi # get request
-    push rcx # len
-
-cmp_loop:
-    cmp rcx, 0
-    je strings_equal
-
-    mov al, byte ptr [rsi]
-    mov bl, byte ptr [rdi]
-    cmp al, bl
-    jne string_not_equal
-
-    inc rdi
-    inc rsi 
-    dec rcx 
-    
-    jmp cmp_loop
-
-strings_equal:
+handle_client:
     mov rax, 0
-    jmp cmp_done
-
-string_not_equal:
-    mov rax, 1
-    jmp cmp_done
-
-cmp_done:
-    pop rsi 
-    pop rdi 
-    pop rcx
-    ret
-
-skip_content:
-    call send_200_html
-    ret
-
-send_200_html:
-    mov rax, 1 
-    mov rdi, [client_fd]
-    lea rsi, [http_200_html]
-    mov rdx, http_200_html_len
+    mov rdi, r11 
+    lea rsi, [buffer]
+    mov rdx, 4096
     syscall
 
-    ret
+    cmp rax, 0
+    jle close_client
 
-send_200_css:
     mov rax, 1 
-    mov rdi, [client_fd]
-    lea rsi, [http_200_css]
-    mov rdx, http_200_css_len
+    mov rdi, r11 
+    lea rsi, [http_response]
+    mov rdx, http_response_len
     syscall
 
-    ret
-
-send_200_js:
-    mov rax, 1 
-    mov rdi, [client_fd]
-    lea rsi, [http_200_js]
-    mov rdx, http_200_js_len
+close_client:
+    mov rax, 233 
+    mov rdi, [epoll_fd]
+    mov rsi, 3
+    mov rdx, r11 # client_fd
+    mov r10, 0
     syscall
 
-    ret
-
-send_404:
-    mov rax, 1 
-    mov rdi, [client_fd]
-    lea rsi, [http_404]
-    mov rdx, http_404_len
-    syscall
-    
-    ret
-
-close_and_exit:
     mov rax, 3
-    mov rdi, [client_fd]
-    syscall 
-
-    mov rax, 60
-    mov rdi, 0 
+    mov rdi, r11 
     syscall
+
+next_event:
+    inc r13 # next event
+    jmp process_events
