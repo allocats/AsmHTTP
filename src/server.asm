@@ -57,10 +57,10 @@ default_response:
 default_response_len = . - default_response
 
 ext_table:
-    .long ext_html, case_html
-    .long ext_css,  case_css
-    .long ext_js,   case_js
-    .long 0,        case_default 
+    .quad ext_html, case_html
+    .quad ext_css,  case_css
+    .quad ext_js,   case_js
+    .quad 0,        case_default 
 
 .section .text
 _start:
@@ -137,8 +137,32 @@ serve_connection:
     syscall
 
 parse_request:
-    ret
+    lea rsi, [buffer]
+    lea rdi, [get_req]
+    mov rcx, get_path_end
+    call compare_strings
 
+    cmp rax, 0
+    jne send_404
+    
+    #find start 
+    #find end 
+    #store in to file_path_buffer
+    lea rsi, [buffer + 4]
+    mov rcx, 4 
+    call find_start
+
+find_start:
+    mov al, byte ptr [rsi]
+    cmp al, ' '
+    jne find_done
+    inc rsi 
+    inc rcx
+    jmp find_start
+
+find_done:
+    ret
+    
 open_file:
     mov rax, 2 
     lea rdi, [file_path_buffer]
@@ -186,6 +210,40 @@ get_path_end:
     cmp rdi, buffer + 1024
     je send_404
     jmp get_path_end
+
+compare_strings:
+    push rsi # buffer 
+    push rdi # get request
+    push rcx # len
+
+cmp_loop:
+    cmp rcx, 0
+    je strings_equal
+
+    mov al, byte ptr [rsi]
+    mov bl, byte ptr [rdi]
+    cmp al, bl
+    jne string_not_equal
+
+    inc rdi
+    inc rsi 
+    dec rcx 
+    
+    jmp cmp_loop
+
+strings_equal:
+    mov rax, 0
+    jmp cmp_done
+
+string_not_equal:
+    mov rax, 1
+    jmp cmp_done
+
+cmp_done:
+    pop rsi 
+    pop rdi 
+    pop rcx
+    ret
 
 skip_content:
     call send_200_html
