@@ -27,6 +27,7 @@ _start:
 
     mov [sock_fd], rax
 
+    # set sock opt
     sub rsp, 8 
 
     mov dword ptr [rsp], 1 # optval = 1
@@ -40,6 +41,7 @@ _start:
 
     add rsp, 8
 
+    # bind
     sub rsp, 16
 
     mov word ptr [rsp], 2 
@@ -57,6 +59,7 @@ _start:
     test rax, rax
     js exit_error
 
+    # listen
     mov rax, 50
     mov rdi, [sock_fd]
     mov rsi, 1024
@@ -66,18 +69,20 @@ _start:
     js exit_error
 
     mov rbx, 0 # Worker counter 0 to worker count - 1
-    mov r12, 6 # number of workers, 6 since 6 cores
+    mov r12, 2 # number of workers, 6 since 6 cores
 
 fork_loop:
     cmp rbx, r12
     jge parent_wait             
 
+    # fork
     mov rax, 57                 
     syscall
 
+    # rax = child pid
     test rax, rax
     js exit_error               
-    jnz next_fork               # rax is child_pid, continues forking
+    jnz next_fork 
 
     # epoll!!! creates here
     mov rax, 291
@@ -91,6 +96,7 @@ fork_loop:
     
     sub rsp, 12
 
+    # epollet (edge triggered)
     mov dword ptr [rsp], 0x80000001 
     mov rax, [sock_fd]
     mov qword ptr [rsp + 4], rax
@@ -160,6 +166,7 @@ process_events:
     jmp handle_client
 
 handle_new_connection:
+    # accept4
     mov rax, 288
     mov rdi, [sock_fd]
     xor rsi, rsi
@@ -201,6 +208,7 @@ read_loop:
     cmp rax, 0
     je client_disconnect
 
+    # egain
     cmp rax, -11
     je client_respond
 
