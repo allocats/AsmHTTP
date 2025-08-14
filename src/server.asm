@@ -2,15 +2,16 @@
 .intel_syntax noprefix
 
 .section .bss
+.align 64
 sock_fd:        .space 8
 epoll_fd:       .space 8
 client_fd:      .space 8
 events_array:   .space 12 * 16
-buffer:         .space 4096
+buffer:         .space 1024
 
 .section .data
 http_response:
-    .ascii "HTTP/1.1 200 OK\r\nContent-Length: 13\r\nConnection: close\r\n\r\nHello, world!"
+    .ascii "HTTP/1.1 200 OK\r\nContent-Length: 13\r\nConnection: keep-alive\r\n\r\nHello, world!"
 http_response_len = . - http_response
 
 .section .text 
@@ -28,13 +29,13 @@ _start:
 
     sub rsp, 8 
 
-    mov dword ptr [rsp], 1     # optval = 1
-    mov rax, 54                # setsockopt syscall
-    mov rdi, [sock_fd]         # sockfd
-    mov rsi, 1                 # SOL_SOCKET
-    mov rdx, 2                 # SO_REUSEADDR
-    mov r10, rsp               # optval
-    mov r8, 4                  # optlen
+    mov dword ptr [rsp], 1 # optval = 1
+    mov rax, 54 # setsockopt syscall
+    mov rdi, [sock_fd] # sockfd
+    mov rsi, 1 # SOL_SOCKET
+    mov rdx, 2 # SO_REUSEADDR
+    mov r10, rsp # optval
+    mov r8, 4 # optlen
     syscall
 
     add rsp, 8
@@ -58,11 +59,25 @@ _start:
 
     mov rax, 50
     mov rdi, [sock_fd]
-    mov rsi, 10
+    mov rsi, 1024
     syscall
 
     test rax, rax
     js exit_error
+
+    mov rbx, 0 # Worker counter 0 to worker count - 1
+    mov r12, 6 # number of workers, 6 since 6 cores
+
+fork_loop:
+    cmp rbx, r12
+    jge parent_wait             
+
+    mov rax, 57                 
+    syscall
+
+    test rax, rax
+    js exit_error               
+    jnz next_fork               # rax is child_pid, continues forking
 
     # epoll!!! creates here
     mov rax, 291
@@ -74,12 +89,11 @@ _start:
 
     mov [epoll_fd], rax
     
-    sub rsp, 16
+    sub rsp, 12
 
-    mov dword ptr [rsp], 1 
-    mov qword ptr [rsp + 4], 0
+    mov dword ptr [rsp], 0x80000001 
     mov rax, [sock_fd]
-    mov qword ptr [rsp + 8], rax
+    mov qword ptr [rsp + 4], rax
 
     mov rax, 233 #epoll_ctl
     mov rdi, [epoll_fd] 
@@ -88,10 +102,33 @@ _start:
     mov r10, rsp
     syscall
 
-    add rsp, 16
+    add rsp, 12
 
     test rax, rax
     js exit_error
+
+    jmp event_loop
+
+next_fork:
+    inc rbx
+    jmp fork_loop
+
+parent_wait:
+    sub rsp, 8 # Space for status
+
+inf_wait:
+    mov rax, 61 # wait4
+    mov rdi, -1 # Any child
+    mov rsi, rsp # &status
+    mov rdx, 0 # Options
+    mov r10, 0 # rusage
+    syscall
+
+    cmp rax, -1 # No more children?
+    je exit_success             
+    jmp inf_wait
+
+    add rsp, 8
 
 event_loop:
     mov rax, 232 # epoll wait
@@ -116,7 +153,7 @@ process_events:
     mul rdx
     lea r14, [events_array + rax]
 
-    mov r11, qword ptr [r14 + 8] # fd from event
+    mov r11, qword ptr [r14 + 4] # fd from event
     cmp r11, [sock_fd]
     je handle_new_connection
 
@@ -136,11 +173,10 @@ handle_new_connection:
     mov r15, rax
 
     # add the new client to epoll
-    sub rsp, 16
+    sub rsp, 12
 
-    mov dword ptr [rsp], 1 
-    mov qword ptr [rsp + 4], 0
-    mov qword ptr [rsp + 8], r15 
+    mov dword ptr [rsp], 0x80000001
+    mov qword ptr [rsp + 4], r15 
     mov rax, 233 
     mov rdi, [epoll_fd]
     mov rsi, 1 
@@ -148,47 +184,52 @@ handle_new_connection:
     mov r10, rsp
     syscall
 
-    add rsp, 16
+    add rsp, 12
 
     jmp next_event
 
 handle_client:
     mov r15, r11
     
+read_loop:
     mov rax, 0
     mov rdi, r15
     lea rsi, [buffer]
-    mov rdx, 4096
+    mov rdx, 1024 
     syscall
 
+    cmp rax, 0
+    je client_disconnect
+
     cmp rax, -11
-    je next_event 
+    je client_respond
 
-    test rax, rax 
-    jle close_client
+    jmp read_loop
 
-    mov rax, 1 
+client_respond:
+    mov rax, 1
     mov rdi, r15
     lea rsi, [http_response]
     mov rdx, http_response_len
     syscall
 
-    jmp close_client
+    jmp next_event
 
-close_client:
-    mov rax, 233 
+client_disconnect:
+    mov rax, 233
     mov rdi, [epoll_fd]
-    mov rsi, 2
-    mov rdx, r15 # client_fd
+    mov rsi, 2 # EPOLL_CTL_DEL
+    mov rdx, r15
     xor r10, r10
     syscall
 
     mov rax, 3
-    mov rdi, r15 
+    mov rdi, r15
     syscall
 
+    jmp next_event
+
 next_event:
-    # next event
     inc r13 
     jmp process_events
 

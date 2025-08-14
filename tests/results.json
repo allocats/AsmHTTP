@@ -1,0 +1,27 @@
+{
+  "total_requests": 50000,
+  "successful_requests": 371,
+  "failed_requests": 49629,
+  "success_rate": 0.742,
+  "total_duration_seconds": 11.712297916412354,
+  "requests_per_second": 31.676106827860018,
+  "response_time_stats": {
+    "mean_ms": 97.11735267844804,
+    "median_ms": 135.42795181274414,
+    "min_ms": 14.254093170166016,
+    "max_ms": 207.25226402282715,
+    "std_dev_ms": 68.33054348235045
+  },
+  "percentiles_ms": {
+    "p50": 135.42795181274414,
+    "p90": 180.14063835144043,
+    "p95": 180.56225776672363,
+    "p99": 207.22479820251465
+  },
+  "errors": {
+    "by_type": {
+      "str": 49629
+    },
+    "by_status_code": {}
+  }
+}
