@@ -86,11 +86,10 @@ lookup_loop:
     jmp lookup_loop 
 
 found_match:
-    mov rsi, [r11 + 8]
-    mov rdx, [r11 + 16]
-
     mov rax, 1 
     mov rdi, r12
+    mov rsi, [r11 + 8]
+    mov rdx, [r11 + 16]
     syscall
 
     jmp function_exit

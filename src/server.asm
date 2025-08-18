@@ -68,7 +68,7 @@ _start:
     js exit_error
 
     mov rbx, 0 # Worker counter 0 to worker count - 1
-    mov r12, 4 # number of workers, 6 since 6 cores
+    mov r12, 6 # number of workers, 6 since 6 cores
 
 fork_loop:
     cmp rbx, r12
@@ -235,6 +235,7 @@ client_respond:
     rep stosq
 
     jmp next_event
+    #jmp client_disconnect
 
 client_disconnect:
     mov rax, 233
