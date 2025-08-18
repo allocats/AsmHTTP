@@ -33,6 +33,19 @@ _start:
     mov rax, 54 # setsockopt syscall
     mov rdi, [sock_fd] # sockfd
     mov rsi, 1 # SOL_SOCKET
+    mov rdx, 15 # SO_REUSEPORT
+    mov r10, rsp # optval
+    mov r8, 4 # optlen
+    syscall
+
+    add rsp, 8
+
+    sub rsp, 8
+
+    mov dword ptr [rsp], 1 # optval = 1
+    mov rax, 54 # sys_setsockopt
+    mov rdi, [sock_fd] # sockfd
+    mov rsi, 1 # SOL_SOCKET
     mov rdx, 2 # SO_REUSEADDR
     mov r10, rsp # optval
     mov r8, 4 # optlen
@@ -67,7 +80,7 @@ _start:
     test rax, rax
     js exit_error
 
-    mov rbx, 0 # Worker counter 0 to worker count - 1
+    xor rbx, rbx # Worker counter 0 to worker count - 1
     mov r12, 6 # number of workers, 6 since 6 cores
 
 fork_loop:
