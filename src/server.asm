@@ -1,6 +1,10 @@
 .global _start
 .intel_syntax noprefix
 
+.include "src/parse_request.asm"
+.include "src/file_lookup.asm"
+.include "src/cached_files.asm"
+
 .section .bss
 .align 64
 sock_fd:        .space 8
@@ -8,21 +12,6 @@ epoll_fd:       .space 8
 client_fd:      .space 8
 events_array:   .space 12 * 16
 buffer:         .space 1024
-
-.section .data
-http_response:
-    .ascii "HTTP/1.1 200 OK\r\n"
-    .ascii "Content-Type: text/html\r\n"
-    .ascii "Content-Length: 28\r\n"
-    .ascii "Connection: keep-alive\r\n"
-    #.ascii "Connection: close\r\n"
-    .ascii "\r\n"
-    .ascii "<h1> hi there from x86!</h1>"
-http_response_len = . - http_response
-
-index_html_buffer
-    .ascii "index.html"
-index_html_buffer_len = . - index_html_buffer
 
 .section .text 
 _start:
@@ -238,22 +227,14 @@ check_data_read:
     jmp client_respond
 
 client_respond:
-    # parse request > headers > file contents
-    # sys_sendfile() 40, outfd, infd, offset, count for media files
-    mov rax, 1
-    mov rdi, r15
-    lea rsi, [http_response]
-    mov rdx, http_response_len
-    syscall
+    call parse_path
 
+    xor rax, rax
+    lea rdi, [buffer]
+    mov rcx, 1024 / 8 
+    rep stosq
 
-    # next_event for actually efficiency, client_disconnect for benchmarkign as the benchmarking tools expect a close
     jmp next_event
-    #jmp client_disconnect 
-
-parse_request:
-    # get buffers from bash script > parse request > assign correct buffer to rsi, call send? or store it into a different register, or just good old, lea rsi. [correct_buffer] and syscall right there and then in file_found. start simple and optimise from there or what about sys_sendfile? either way reducing computations by precomupting and caching. did some research, sys_sendfile() it is, reduces complexity too, but should investigate precaching the buffers although the memory slowdown could be too much
-
 
 client_disconnect:
     mov rax, 233
