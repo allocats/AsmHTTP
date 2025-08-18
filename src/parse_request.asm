@@ -56,18 +56,18 @@ no_slash:
     jmp not_found
 
 hash_path:
-    mov eax, 5381          # djb2 initial valur
-    xor rcx, rcx           # clear counter
+    mov eax, 5381 # djb2 initial valur
+    xor rcx, rcx # clear counter
 
 hash_loop:
-    movzx ebx, byte ptr [rsi + rcx]    # load nrxt bytr
+    movzx ebx, byte ptr [rsi + rcx] # load nrxt bytr
     cmp ebx, 0 # check for null terminator
     je hash_done            
 
     mov edx, eax 
     shl eax, 5 
     add eax, edx
-    add eax, ebx            # add charactrr
+    add eax, ebx # add charactrr
 
     inc rcx                 
     jmp hash_loop
