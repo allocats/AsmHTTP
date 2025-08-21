@@ -41,7 +41,7 @@ minify_html() {
 }
 
 minify_css() {
-    sed 's/\/\*.*\*\///g' | \
+    # sed 's/\/\*.*\*\///g' | \
     tr -d '\n' | tr -d '\r' | \
     sed 's/[[:space:]]\+/ /g' | \
     sed 's/[[:space:]]*{[[:space:]]*/{/g' | \
@@ -101,23 +101,27 @@ for file in $(find "$WWW_DIR" -name "*.html" -o -name "*.css" -o -name "*.js" | 
     
     case "$file" in
         *.html)
-            content=$(cat "$file" | minify_html | escape_for_asm)
+            content=$(cat "$file" | minify_html)
             content_len=${#content}
+            content=$(echo "$content" | escape_for_asm)
             header+="Content-Type: text/html\r\nContent-Length: ${content_len}\r\n\r\n"
             ;;
         *.css)
-            content=$(cat "$file" | minify_css | escape_for_asm)
+            content=$(cat "$file" | minify_css)
             content_len=${#content}
+            content=$(echo "$content" | escape_for_asm)
             header+="Content-Type: text/css\r\nContent-Length: ${content_len}\r\n\r\n"
             ;;
         *.js)
-            content=$(cat "$file" | minify_js | escape_for_asm)
+            content=$(cat "$file" | minify_js)
             content_len=${#content}
+            content=$(echo "$content" | escape_for_asm)
             header+="Content-Type: text/javascript\r\nContent-Length: ${content_len}\r\n\r\n"
             ;;
         *)
-            content=$(cat "$file" | escape_for_asm)
+            content=$(cat "$file")
             content_len=${#content}
+            content=$(echo "$content" | escape_for_asm)
             ;;
     esac
 
@@ -129,19 +133,16 @@ for file in $(find "$WWW_DIR" -name "*.html" -o -name "*.css" -o -name "*.js" | 
     percentage=$(( savings * 100 / original_size ))
     
     echo "  Minified: $minified_size bytes (saved $savings bytes, ${percentage}%)"
-    
-    # echo "path_$safe_name:" >> "$OUTPUT_FILE"
-    # echo "    .asciz \"/$rel_path\"" >> "$OUTPUT_FILE"
-    # echo "" >> "$OUTPUT_FILE"
-    
+
     echo "cached_$safe_name:" >> "$OUTPUT_FILE"
-    echo "    .asciz \"$header\"" >> "$OUTPUT_FILE"
-    echo "    .asciz \"$content\"" >> "$OUTPUT_FILE"
+    echo "    .ascii \"$header\"" >> "$OUTPUT_FILE"
+    echo "    .ascii \"$content\"" >> "$OUTPUT_FILE"
     
     echo "cached_${safe_name}_len = . - cached_$safe_name" >> "$OUTPUT_FILE"
     echo "" >> "$OUTPUT_FILE"
     
-    echo "    .quad $hash, cached_$safe_name, cached_${safe_name}_len" >> "$LOOKUP_FILE"
+    echo "    .long $hash" >> "$LOOKUP_FILE" 
+    echo "    .quad cached_$safe_name, cached_${safe_name}_len" >> "$LOOKUP_FILE"
     
     ((file_count++))
 done

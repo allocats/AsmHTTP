@@ -41,10 +41,7 @@ extract_file:
     jmp extract_file
 
 slash_found:
-    sub rcx, rdx
-
     lea r9, [r8]
-    add r9, rdx 
     add r9, rcx 
     mov byte ptr [r9], 0
 
@@ -82,14 +79,14 @@ lookup_loop:
     cmp eax, dword ptr [r11]
     je found_match 
 
-    add r11, 24
+    add r11, 20
     jmp lookup_loop 
 
 found_match:
     mov rax, 1 
     mov rdi, r12
-    mov rsi, [r11 + 8]
-    mov rdx, [r11 + 16]
+    mov rsi, [r11 + 4]
+    mov rdx, [r11 + 12]
     syscall
 
     jmp function_exit
